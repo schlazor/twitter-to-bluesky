@@ -32,7 +32,8 @@ const API_DELAY = 2500; // https://docs.bsky.app/docs/advanced-guides/rate-limit
 const TWEETS_MAPPING_FILE_NAME = 'tweets_mapping.json'; // store the imported tweets & bsky id mapping
 const DISABLE_IMPORT_REPLY = process.env.DISABLE_IMPORT_REPLY === "1";
 const MAX_FILE_SIZE = 1 * 1000 * 1000; // 1MiB
-
+const IGNORE_ERRORS = process.env.IGNORE_ERRORS === "1";
+const VIDEO_UPLOAD_RETRIES = Number(process.env.VIDEO_UPLOAD_RETRIES) || 0
 
 let MIN_DATE: Date | undefined = undefined;
 if (process.env.MIN_DATE != null && process.env.MIN_DATE.length > 0)
@@ -571,33 +572,41 @@ async function main() {
                                     },
                                     body: videoBuffer,
                                 });
-                                
-                                const jobStatus = (await uploadResponse.json()) as AppBskyVideoDefs.JobStatus;
+
+                                let jobStatus = (await uploadResponse.json()) as AppBskyVideoDefs.JobStatus;
                                 if (jobStatus.error) {
                                     console.warn(` Video job status: '${jobStatus.error}'. Video will be posted as a link`);
                                 }
-                                console.log(" JobId:", jobStatus.jobId);
-        
-                                let blob: BlobRef | undefined = jobStatus.blob;
-        
-                                const videoAgent = new AtpAgent({ service: "https://video.bsky.app" });
-                                
-                                while (!blob) {
-                                  const { data: status } = await videoAgent.app.bsky.video.getJobStatus(
-                                    { jobId: jobStatus.jobId },
-                                  );
-                                  console.log("  Status:",
-                                    status.jobStatus.state,
-                                    status.jobStatus.progress || "",
-                                  );
-                                  if (status.jobStatus.blob) {
-                                    blob = status.jobStatus.blob;
-                                  }
-                                  // wait a second
-                                  await new Promise((resolve) => setTimeout(resolve, 1000));
+                                let i = 0;
+                                while (jobStatus.jobId === undefined && i < VIDEO_UPLOAD_RETRIES) {
+                                    console.warn("Undefined video upload jobId, retrying...");
+                                    jobStatus = (await uploadResponse.json()) as AppBskyVideoDefs.JobStatus;
+                                    i++;
                                 }
-    
-                                embeddedVideo = blob;
+                                if (!jobStatus.error || !IGNORE_ERRORS) {
+                                    console.log(" JobId:", jobStatus.jobId);
+
+                                    let blob: BlobRef | undefined = jobStatus.blob;
+
+                                    const videoAgent = new AtpAgent({ service: "https://video.bsky.app" });
+
+                                    while (!blob) {
+                                      const { data: status } = await videoAgent.app.bsky.video.getJobStatus(
+                                        { jobId: jobStatus.jobId },
+                                      );
+                                      console.log("  Status:",
+                                        status.jobStatus.state,
+                                        status.jobStatus.progress || "",
+                                      );
+                                      if (status.jobStatus.blob) {
+                                        blob = status.jobStatus.blob;
+                                      }
+                                      // wait a second
+                                      await new Promise((resolve) => setTimeout(resolve, 1000));
+                                    }
+
+                                    embeddedVideo = blob;
+                                }
                             }
                         }
                     }

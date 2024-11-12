@@ -26,6 +26,8 @@ They use the official archive export file format from X/Twitter, this utility re
 - `BLUESKY_PASSWORD` = account password created via App Password (eg. "pwd123")
 - `ARCHIVE_FOLDER` = full path to the folder containing the X/Twitter archive (e.g. "C:/Temp/twitter-archive")
 - `PAST_HANDLES` - one or more x/twitter handles without @, comma separated (e.g. 'marcomaroni,user'). It is used to intercept replies to oneself (threads) and filter out some duplicate links included in the tweet text from the tweet archive.
+- `IGNORE_ERRORS` - set to 1 if you'd like to continue processing tweets after errors occur instead of exiting
+- `VIDEO_UPLOAD_RETRIES` - set to the number of times you'd like to retry uploading each video if the first attempt results in an undefined JobId
 
 **I highly recommend trying to simulate the import first and import a small range of tweets, using the additional parameters documented below.**
 
