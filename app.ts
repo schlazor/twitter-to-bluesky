@@ -407,7 +407,7 @@ async function main() {
                 console.log(` Created at ${tweet_createdAt}`);
                 console.log(` Full text '${tweet.full_text}'`);
 
-                if (DISABLE_IMPORT_REPLY && tweet.in_reply_to_screen_name) {
+                if (DISABLE_IMPORT_REPLY && tweet.in_reply_to_user_id) {
                     console.log("Discarded (reply)");
                     continue;
                 }
@@ -418,6 +418,9 @@ async function main() {
                         const replyPrefix = `@${tweet.in_reply_to_screen_name} `;
                         if (tweet.full_text.startsWith(replyPrefix)) {
                             tweet.full_text = tweet.full_text.replace(replyPrefix, '').trim();
+                        } else {
+                            console.log("Discarded (reply to self but not in own thread)");
+                            continue;
                         }
                     } else {
                         console.log("Discarded (reply to another user)");
@@ -513,7 +516,6 @@ async function main() {
                                 });
                             }
                         }
-
                         if (media?.type === "video") {
 
                             if (tweet.full_text.includes(media?.url)) {
