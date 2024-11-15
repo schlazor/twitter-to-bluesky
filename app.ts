@@ -523,10 +523,16 @@ async function main() {
             type: 'boolean',
             description: 'Log a warning for any tweets between May 2022 and October 2023 when used with --simulate.',
             default: process.env.CIRCLE_WARNINGS === "1",
+        })
         .option('ignore-video-errors', {
             type: 'boolean',
             description: 'Continue processing tweets when the video service returns a job without an ID (usually because the video is too long)',
             default: process.env.IGNORE_VIDEO_ERRORS === '1',
+        })
+        .option('video-upload-retries', {
+            type: 'number',
+            description: "Number of times to retry video uploads when error JOB_STATE_FAILED encountered",
+            default: process.env.VIDEO_UPLOAD_RETRIES ? parseInt(process.env.VIDEO_UPLOAD_RETRIES) : 1,
         })
         .help()
         .argv;
@@ -544,6 +550,7 @@ async function main() {
     console.log(`Bluesky Username is ${argv.blueskyUsername}`);
     console.log(`Circle Warnings enabled? ${argv.circleWarnings}`);
     console.log(`Ignore video errors? ${argv.ignoreVideoErrors}`);
+    console.log(`Video upload retries: ${argv.videoUploadRetries}`);
 
     const tweets = getTweets(argv.archiveFolder);
   
@@ -743,9 +750,6 @@ async function main() {
                                   );
                                 uploadUrl.searchParams.append("did", rateLimitedAgent.session!.did);
                                 uploadUrl.searchParams.append("name", videoFilePath.split("/").pop()!+"1");
-        
-                                console.log(" Upload video");
-    
                                 const uploadResponse = await fetch(uploadUrl, {
                                     method: "POST",
                                     headers: {
@@ -761,28 +765,36 @@ async function main() {
                                     console.warn(` Video job status: '${jobStatus.error}'. Video will be posted as a link`);
                                 }
                                 console.log(" JobId:", jobStatus.jobId);
-        
                                 if (jobStatus.jobId || !argv.ignoreVideoErrors) {
-                                    let blob: BlobRef | undefined = jobStatus.blob;
+                                    let retries = 1;
+                                    while (retries <= argv.videoUploadRetries) {
+                                        console.log(` Upload video, attempt: ${retries}`);
+                                        let blob: BlobRef | undefined = jobStatus.blob;
 
-                                    const videoAgent = new AtpAgent({ service: "https://video.bsky.app" });
+                                        const videoAgent = new AtpAgent({ service: "https://video.bsky.app" });
 
-                                    while (!blob) {
-                                      const { data: status } = await videoAgent.app.bsky.video.getJobStatus(
-                                        { jobId: jobStatus.jobId },
-                                      );
-                                      console.log("  Status:",
-                                        status.jobStatus.state,
-                                        status.jobStatus.progress || "",
-                                      );
-                                      if (status.jobStatus.blob) {
-                                        blob = status.jobStatus.blob;
-                                      }
-                                      // wait a second
-                                      await new Promise((resolve) => setTimeout(resolve, 1000));
+                                        while (!blob) {
+                                          const { data: status } = await videoAgent.app.bsky.video.getJobStatus(
+                                            { jobId: jobStatus.jobId },
+                                          );
+                                          console.log("  Status:",
+                                            status.jobStatus.state,
+                                            status.jobStatus.progress || "",
+                                          );
+                                          if ("JOB_STATE_FAILED" === status.jobStatus.state) {
+                                              continue;
+                                          }
+                                          if (status.jobStatus.blob) {
+                                            blob = status.jobStatus.blob;
+                                          }
+                                          // wait a second
+                                          await new Promise((resolve) => setTimeout(resolve, 1000));
+                                        }
+                                        if (blob) {
+                                            embeddedVideo = blob;
+                                            break;
+                                        }
                                     }
-
-                                    embeddedVideo = blob;
                                 }
                             }
                         }
