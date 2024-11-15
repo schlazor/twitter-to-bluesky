@@ -85,6 +85,9 @@ These arguments are optional and help customize the import:
 - `--circle-warnings` - When used with `--simulate`, logs a warning for tweets that would be imported that could potentially be Circle tweets (see below for more info).
     Example: `--circle-warnings`
 
+- `--ignore-video-errors` - Do not stop processing tweets if the video service fails to provide a JobId (typically when the video exceeds the max duration)
+    Example: `--ignore-video-errors`
+
 **Examples when running on Windows**
 
 Assuming you stored the Twitter archive in `C:\Temp\twitter-archive` and you want to import tweets from two Twitter handles:
@@ -119,6 +122,7 @@ Additionally you can set these environment variables to customize behavior:
 - `DISABLE_IMPORT_REPLY` = if set to 1 disables the import of replies to your tweets (threads).
 - `API_DELAY` = Delay between Bluesky API calls in milliseconds
 - `CIRCLE_WARNINGS` = When used with SIMULATE, logs a warning about tweets that are potentially Circle tweets (see below).
+- `IGNORE_VIDEO_ERRORS` = if set to "1" continue processing tweets when a video submission fails
 
 **Example of a `.env` file:**
 
@@ -127,6 +131,7 @@ BLUESKY_USERNAME=test.bsky.social
 BLUESKY_PASSWORD=pwd123
 ARCHIVE_FOLDER=C:/Temp/twitter-archive
 TWITTER_HANDLES=marcomaroni,user
+IGNORE_VIDEO_ERRORS=1
 ```
 
 Then you can run the script with `npm start` or `npm run start_log` to write an import.log file.
