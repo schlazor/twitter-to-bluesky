@@ -14,7 +14,6 @@ import { AppBskyVideoDefs, AtpAgent, BlobRef, RichText } from '@atproto/api';
 
 import { getEmbeddedUrlAndRecord, getMergeEmbed, getReplyRefs } from './libs/bskyParams';
 import { checkPastHandles, convertToBskyPostUrl, getBskyPostUrl } from './libs/urlHandler';
-import { time } from 'console';
 
 let fetch: any;
 (async () => {
@@ -531,8 +530,13 @@ async function main() {
         })
         .option('video-upload-retries', {
             type: 'number',
-            description: "Number of times to retry video uploads when error JOB_STATE_FAILED encountered",
+            description: 'Number of times to retry video uploads when error JOB_STATE_FAILED encountered',
             default: process.env.VIDEO_UPLOAD_RETRIES ? parseInt(process.env.VIDEO_UPLOAD_RETRIES) : 1,
+        })
+        .option('ignore-tweet-ids', {
+            type: 'array',
+            description: 'Tweet IDs to ignore in the import',
+            default: process.env.IGNORE_TWEET_IDS?.split(',')
         })
         .help()
         .argv;
@@ -557,9 +561,16 @@ async function main() {
     let importedTweet = 0;
     if (tweets != null && tweets.length > 0) {
         const sortedTweets = tweets.sort((a, b) => {
-            let ad = new Date(a.tweet.created_at).getTime();
-            let bd = new Date(b.tweet.created_at).getTime();
-            return ad - bd;
+            const idA = BigInt(a.tweet.id);
+            const idB = BigInt(b.tweet.id);
+                
+            if (idA < idB)
+                return -1;
+            
+            if (idA > idB)
+                return 1;
+
+            return 0;
         });
 
         await rateLimitedAgent.login({ identifier: argv.blueskyUsername, password: argv.blueskyPassword });
@@ -576,6 +587,10 @@ async function main() {
                 const circleEpoch = new Date("2022-05-01")
                 const circleEnd   = new Date("2023-11-01")
 
+                //skip tweets by ID
+                if(argv.ignoreTweetIds.includes(tweet.id))
+                    continue;
+
                 //this cheks assume that the array is sorted by date (first the oldest)
                 if (minDate != undefined && tweetDate < minDate)
                     continue;
@@ -586,8 +601,6 @@ async function main() {
                     // already imported
                     continue;
                 }
-                // if (tweet.id != "1237000612639846402")
-                //     continue;
 
                 console.log(`Parse tweet id '${tweet.id}'`);
                 console.log(` Created at ${tweet_createdAt}`);
@@ -604,8 +617,8 @@ async function main() {
                         const replyPrefix = `@${tweet.in_reply_to_screen_name} `;
                         if (tweet.full_text.startsWith(replyPrefix)) {
                             tweet.full_text = tweet.full_text.replace(replyPrefix, '').trim();
-                        } else {
-                            console.log("Discarded (reply to self in aother user's thread)");
+                        } else if (tweet.full_text.startsWith("@")) {
+                            console.log("Discarded (reply to self in another user's thread)");
                             continue;
                         }
                     } else {
